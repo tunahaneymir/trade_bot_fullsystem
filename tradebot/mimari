@@ -1,0 +1,98 @@
+trading_bot/
+│
+├── main.py                           # 🚀 Ana başlatma
+├── config.yaml                       # Konfigürasyon
+├── requirements.txt
+├── .gitignore
+│
+├── core/                             # 📊 PARÇA 1-2 (Price Action)
+│   ├── __init__.py
+│   │
+│   # PARÇA 1: Trend & Zone Detection
+│   ├── trend_detector.py            # EMA20/50, sideways
+│   ├── zone_detector.py             # ZigZag++ & Swing HL
+│   ├── zone_quality_scorer.py       # 0-10 scoring
+│   │
+│   # PARÇA 2: Entry & Exit System
+│   ├── choch_detector.py            # Change of Character
+│   ├── fibonacci_calculator.py      # 0.705, 0.618 levels
+│   ├── entry_system.py              # Entry timing
+│   └── exit_system.py               # TP/SL/Trailing/Breakeven
+│
+├── adaptive/                         # 🔄 PARÇA 3 (Re-entry & Adaptive)
+│   ├── __init__.py
+│   ├── reentry_manager.py           # Re-entry logic
+│   ├── adaptive_parameters.py       # ATR-based adaptation
+│   ├── liquidity_detector.py        # Wick sweep detection
+│   └── zone_memory.py               # Zone performance tracking
+│
+├── rl/                               # 🤖 PARÇA 4-7 (RL + Behavior)
+│   ├── __init__.py
+│   │
+│   # PARÇA 4: RL Architecture
+│   ├── rl_agent.py                  # PPO agent
+│   ├── state_builder.py             # 40 features
+│   ├── setup_scorer.py              # 0-100 scoring
+│   ├── gate_system.py               # 4-gate validation
+│   │
+│   # PARÇA 5: Risk & Correlation (RMM içinde)
+│   # (Already exists in Pozisyon-Agent)
+│   │
+│   # PARÇA 6: Reward & Anti-FOMO
+│   ├── reward_engine.py             # -200 to +200
+│   ├── anti_fomo.py                 # FOMO detection & block
+│   │
+│   # PARÇA 7: Anti-Revenge & Overtrading
+│   ├── anti_revenge.py              # Cooldown system
+│   ├── overtrading_detector.py      # Frequency limits
+│   └── emotional_state.py           # Confidence/Stress/Patience
+│
+├── learning/                         # 📚 PARÇA 8 (Learning & Integration)
+│   ├── __init__.py
+│   ├── experience_buffer.py         # 100K experience storage
+│   ├── continuous_learning.py       # Training loop
+│   ├── performance_tracker.py       # Metrics tracking
+│   ├── adaptive_threshold.py        # Threshold optimization
+│   └── system_integration.py        # Full system orchestrator
+│
+├── infrastructure/                   # 🛡️ PARÇA 9 (Resilience)
+│   ├── __init__.py                  # InfrastructureManager
+│   ├── state_manager.py
+│   ├── safe_mode_manager.py
+│   ├── circuit_breaker.py
+│   ├── telegram_bot.py
+│   ├── database_layer.py
+│   ├── cli_dashboard.py
+│   ├── indicator_learning_manager.py
+│   ├── backup_manager.py
+│   └── volatility_guard.py
+│
+└── agents/                           # 🎯 3-Agent Orchestrators
+    ├── __init__.py
+    ├── coin_selection_agent.py      # Agent 1
+    ├── trading_agent.py             # Agent 2 (uses Parça 1-4)
+    └── risk_agent.py                # Agent 3 (uses RMM from Pozisyon-Agent)
+
+Klasör dağılımı
+Parça    Klasör        İçerik
+1        core/         Trend + Zone Detection
+2        core/         Entry + Exit System
+3        adaptive/     Re-entry + Adaptive Params + Liquidity + Zone Memory
+4        rl/           RL Agent + Setup Scoring + Gates
+5        rl/ veya Pozisyon-Agent/rmm_engine.py    Risk & Correlation (zaten var!)
+6        rl/           Reward System + Anti-FOMO
+7        rl/           Anti-Revenge + Overtrading + Emotional
+8        learning/     Continuous Learning + Performance + Integration
+9        infrastructure/     System Resilience + Monitoring
+
+ÖZET TÜM 9 PARÇA
+         Parça                    Klasör            Dosya Sayısı
+1        Trend & Zone             core/             3 dosya
+2        Entry & Exit             core/             4 dosya
+3        Re-entry & Adaptive      adaptive/         4 dosya
+4        RL Architecture          rl/               4 dosya
+5        Risk & Correlation       Pozisyon-Agent/   Zaten var
+6        Reward & Anti-FOMO       rl/               2 dosya
+7        Anti-Revenge             rl/               3 dosya
+8        Learning & Integration   learning/         5 dosya
+9        System Resilience        infrastructure/   9 dosya
