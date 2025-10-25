@@ -1,0 +1,775 @@
+📊 PARÇA 6: REWARD SYSTEM & ANTI-FOMO
+🎁 1. OUTCOME SCORE (Reward System)
+1.1 Reward Philosophy
+RL Öğrenme Prensibi:
+├─ İyi karar + İyi sonuç → Yüksek ödül
+├─ İyi karar + Kötü sonuç → Düşük ceza (şans faktörü)
+├─ Kötü karar + İyi sonuç → Düşük ödül (tekrar yapma!)
+└─ Kötü karar + Kötü sonuç → Ağır ceza
+
+Amaç: RL'in doğru davranışları öğrenmesi
+1.2 Outcome Score Range
+OUTCOME_SCORE_RANGE = {
+    'range': (-200, +200),
+    'categories': {
+        'excellent_outcome': +150 to +200,
+        'good_outcome': +80 to +150,
+        'acceptable_outcome': +30 to +80,
+        'neutral': -30 to +30,
+        'acceptable_loss': -30 to -80,
+        'bad_outcome': -80 to -150,
+        'terrible_outcome': -150 to -200
+    }
+}
+1.3 WIN SCENARIOS (Positive Rewards)
+WIN_REWARDS = {
+    
+    # ══════════════════════════════════
+    # 1. EXCELLENT WIN (+180 to +200)
+    # ══════════════════════════════════
+    'excellent_win': {
+        'conditions': {
+            'setup_score': '80+',
+            'profit': '+2%+',
+            'execution': 'Perfect'
+        },
+        'base_reward': +200,
+        'message': 'Perfect execution! Premium setup won big',
+        'learning': 'Prioritize these exact setups',
+        
+        'example': '''
+        Setup Score: 85
+        Entry: $50,000
+        Exit: $51,500 (+3%)
+        Execution: Waited for 0.705, SL managed perfectly
+        → Reward: +200
+        '''
+    },
+    
+    # ══════════════════════════════════
+    # 2. GOOD WIN (+120 to +180)
+    # ══════════════════════════════════
+    'good_win': {
+        'conditions': {
+            'setup_score': '65-79',
+            'profit': '+1.5%+',
+        },
+        'base_reward': +150,
+        'message': 'Good trade! Setup worked well',
+        'learning': 'These setups are reliable',
+        
+        'example': '''
+        Setup Score: 68
+        Profit: +2.2%
+        → Reward: +150
+        '''
+    },
+    
+    # ══════════════════════════════════
+    # 3. ACCEPTABLE WIN (+60 to +120)
+    # ══════════════════════════════════
+    'acceptable_win': {
+        'conditions': {
+            'setup_score': '50-64',
+            'profit': '+1%+',
+        },
+        'base_reward': +100,
+        'message': 'Medium setup worked',
+        'learning': 'Can take these cautiously',
+        
+        'example': '''
+        Setup Score: 58
+        Profit: +1.3%
+        → Reward: +100
+        '''
+    },
+    
+    # ══════════════════════════════════
+    # 4. WEAK WIN (+30 to +60)
+    # ══════════════════════════════════
+    'weak_win': {
+        'conditions': {
+            'setup_score': '40-49',
+            'profit': '+0.5%+',
+        },
+        'base_reward': +50,
+        'message': 'Lucky win from weak setup',
+        'learning': 'Don\'t rely on weak setups',
+        
+        'example': '''
+        Setup Score: 43
+        Profit: +0.8%
+        → Reward: +50 (low, don't repeat)
+        '''
+    }
+}
+1.4 LOSS SCENARIOS (Negative Rewards)
+LOSS_PENALTIES = {
+    
+    # ══════════════════════════════════
+    # 1. ACCEPTABLE LOSS (-30 to -50)
+    # ══════════════════════════════════
+    'acceptable_loss': {
+        'conditions': {
+            'setup_score': '80+',
+            'loss': '-1.5% (SL hit)',
+        },
+        'penalty': -50,  # LOW PENALTY
+        'message': 'Excellent setup, bad luck',
+        'learning': 'Keep taking these setups',
+        
+        'rationale': '''
+        Setup mükemmeldi, her şey doğru yapıldı
+        Piyasa ters gitti (kontrol dışı)
+        → Düşük ceza, bu normal
+        ''',
+        
+        'example': '''
+        Setup Score: 87
+        Entry: Perfect (0.705 fib)
+        SL: Correct placement
+        Loss: -1.5%
+        → Penalty: -50 (keep doing this)
+        '''
+    },
+    
+    # ══════════════════════════════════
+    # 2. NORMAL LOSS (-70 to -90)
+    # ══════════════════════════════════
+    'normal_loss': {
+        'conditions': {
+            'setup_score': '65-79',
+            'loss': '-1.5%',
+        },
+        'penalty': -80,
+        'message': 'Normal loss, acceptable',
+        'learning': 'Part of trading, continue',
+        
+        'example': '''
+        Setup Score: 68
+        Loss: -1.5%
+        → Penalty: -80
+        '''
+    },
+    
+    # ══════════════════════════════════
+    # 3. WEAK SETUP LOSS (-110 to -140)
+    # ══════════════════════════════════
+    'weak_setup_loss': {
+        'conditions': {
+            'setup_score': '50-64',
+            'loss': '-1.5%',
+        },
+        'penalty': -120,  # MEDIUM PENALTY
+        'message': 'Weak setup led to loss',
+        'learning': 'Be more selective',
+        
+        'example': '''
+        Setup Score: 55
+        Loss: -1.5%
+        → Penalty: -120 (avoid weak setups)
+        '''
+    },
+    
+    # ══════════════════════════════════
+    # 4. BAD SETUP LOSS (-160 to -190)
+    # ══════════════════════════════════
+    'bad_setup_loss': {
+        'conditions': {
+            'setup_score': '40-49',
+            'loss': '-1.5%',
+        },
+        'penalty': -180,  # HEAVY PENALTY
+        'message': 'Should not have taken this',
+        'learning': 'Raise quality threshold',
+        
+        'example': '''
+        Setup Score: 43
+        Loss: -1.5%
+        → Penalty: -180 (big mistake)
+        '''
+    },
+    
+    # ══════════════════════════════════
+    # 5. TERRIBLE LOSS (-190 to -200)
+    # ══════════════════════════════════
+    'terrible_loss': {
+        'conditions': {
+            'setup_score': '<40',
+            'loss': 'Any',
+        },
+        'penalty': -200,  # MAXIMUM PENALTY
+        'message': 'Violated minimum standards',
+        'learning': 'Never take sub-40 setups',
+        
+        'example': '''
+        Setup Score: 35
+        → Penalty: -200 (should be auto-rejected)
+        '''
+    }
+}
+1.5 SPECIAL BONUSES & PENALTIES
+SPECIAL_ADJUSTMENTS = {
+    
+    # ══════════════════════════════════
+    # BONUSES (Add to base reward)
+    # ══════════════════════════════════
+    'bonuses': {
+        'perfect_execution': {
+            'bonus': +50,
+            'conditions': [
+                'Setup score 85+',
+                'Perfect timing (0-1 candle)',
+                'Profit achieved'
+            ],
+            'message': 'Flawless execution bonus'
+        },
+        
+        'patience_rewarded': {
+            'bonus': +30,
+            'conditions': [
+                'Waited for full setup',
+                'No FOMO',
+                'All conditions met'
+            ],
+            'message': 'Patience paid off'
+        },
+        
+        'risk_discipline': {
+            'bonus': +20,
+            'conditions': [
+                'Proper position sizing',
+                'SL placement correct',
+                'TP management good'
+            ],
+            'message': 'Excellent risk management'
+        },
+        
+        'kademeli_exit': {
+            'bonus': +15,
+            'conditions': [
+                'Used TP1, TP2, TP3',
+                'Maximized profit',
+                'SL trailed properly'
+            ],
+            'message': 'Optimal exit strategy'
+        }
+    },
+    
+    # ══════════════════════════════════
+    # PENALTIES (Subtract from base)
+    # ══════════════════════════════════
+    'penalties': {
+        'fomo_trade': {
+            'penalty': -100,
+            'detection': [
+                'Setup incomplete',
+                'Chased price',
+                'Skipped conditions'
+            ],
+            'message': 'FOMO detected - heavy penalty',
+            'impact': 'Even if won, penalty applied'
+        },
+        
+        'revenge_trade': {
+            'penalty': -80,
+            'detection': [
+                'Cooldown violated',
+                'Rushed entry after loss',
+                'Quality degraded'
+            ],
+            'message': 'Revenge trading - undisciplined'
+        },
+        
+        'over_risk': {
+            'penalty': -50,
+            'detection': [
+                'Risk > 2.5%',
+                'Limit violated',
+                'Too aggressive'
+            ],
+            'message': 'Risk management violation'
+        },
+        
+        'overtrading': {
+            'penalty': -40,
+            'detection': [
+                'Too many trades',
+                'Quality declining',
+                'Rapid entries'
+            ],
+            'message': 'Overtrading detected'
+        },
+        
+        'poor_timing': {
+            'penalty': -30,
+            'detection': [
+                'Setup too old (5+ candles)',
+                'Late entry',
+                'Missed optimal point'
+            ],
+            'message': 'Poor entry timing'
+        }
+    }
+}
+1.6 Complete Reward Calculation
+def calculate_outcome_score(trade_result):
+    """
+    Trade bittiğinde outcome score hesapla
+    """
+    
+    # ─────────────────────────────────
+    # 1. Base Reward (Win/Loss Category)
+    # ─────────────────────────────────
+    setup_score = trade_result['setup_score']
+    pnl_percent = trade_result['pnl_percent']
+    
+    if pnl_percent > 0:  # WIN
+        if setup_score >= 80 and pnl_percent >= 2.0:
+            base_reward = +200  # Excellent
+        elif setup_score >= 65 and pnl_percent >= 1.5:
+            base_reward = +150  # Good
+        elif setup_score >= 50 and pnl_percent >= 1.0:
+            base_reward = +100  # Acceptable
+        else:
+            base_reward = +50   # Weak
+    
+    else:  # LOSS
+        if setup_score >= 80:
+            base_reward = -50   # Acceptable (good setup)
+        elif setup_score >= 65:
+            base_reward = -80   # Normal
+        elif setup_score >= 50:
+            base_reward = -120  # Weak setup
+        elif setup_score >= 40:
+            base_reward = -180  # Bad
+        else:
+            base_reward = -200  # Terrible
+    
+    # ─────────────────────────────────
+    # 2. Add Bonuses (Only if profit)
+    # ─────────────────────────────────
+    bonuses = 0
+    
+    if pnl_percent > 0:
+        if trade_result.get('perfect_execution'):
+            bonuses += 50
+        if trade_result.get('patience_shown'):
+            bonuses += 30
+        if trade_result.get('risk_discipline'):
+            bonuses += 20
+        if trade_result.get('kademeli_exit'):
+            bonuses += 15
+    
+    # ─────────────────────────────────
+    # 3. Subtract Penalties
+    # ─────────────────────────────────
+    penalties = 0
+    
+    if trade_result.get('fomo_detected'):
+        penalties += 100
+    if trade_result.get('revenge_detected'):
+        penalties += 80
+    if trade_result.get('over_risk'):
+        penalties += 50
+    if trade_result.get('overtrading'):
+        penalties += 40
+    if trade_result.get('poor_timing'):
+        penalties += 30
+    
+    # ─────────────────────────────────
+    # 4. Final Score
+    # ─────────────────────────────────
+    final_score = base_reward + bonuses - penalties
+    
+    # Clip to range
+    final_score = max(-200, min(+200, final_score))
+    
+    return {
+        'total_score': final_score,
+        'breakdown': {
+            'base': base_reward,
+            'bonuses': bonuses,
+            'penalties': penalties
+        },
+        'category': categorize_outcome(final_score)
+    }
+1.7 Reward Examples
+═════════════════════════════════════════════════════════
+ÖRNEK 1: PERFECT TRADE (+230 → CAPPED +200)
+═════════════════════════════════════════════════════════
+Trade Details:
+├─ Setup Score: 87 (EXCELLENT)
+├─ Entry: $50,000 (0.705 fib, perfect timing)
+├─ Exit: $51,600 (+3.2%)
+├─ Execution: Flawless
+
+Calculation:
+─────────────────────────────────────────────────────────
+Base Reward:
+└─ Setup 87 + Profit 3.2% → +200
+
+Bonuses:
+├─ Perfect execution: +50
+├─ Patience rewarded: +30
+├─ Risk discipline: +20
+└─ Kademeli exit: +15
+    Total bonuses: +115
+
+Penalties:
+└─ None: 0
+
+Raw Total: +200 + 115 = +315
+CAPPED: +200 (maximum)
+
+Result: +200 ⭐⭐⭐
+Message: "Perfect trade in every way!"
+
+═════════════════════════════════════════════════════════
+ÖRNEK 2: GOOD WIN BUT FOMO (-50 FINAL)
+═════════════════════════════════════════════════════════
+Trade Details:
+├─ Setup Score: 72 (GOOD)
+├─ Entry: $50,200 (chased, no fib retest!)
+├─ Exit: $51,100 (+1.8%)
+├─ FOMO: Detected
+
+Calculation:
+─────────────────────────────────────────────────────────
+Base Reward:
+└─ Setup 72 + Profit 1.8% → +150
+
+Bonuses:
+└─ None (FOMO negates bonuses): 0
+
+Penalties:
+└─ FOMO detected: -100
+└─ Poor timing: -30
+    Total penalties: -130
+
+Final: +150 - 130 = +20
+
+Result: +20 (LOW despite profit!)
+Message: "Won but violated rules - don't repeat!"
+Learning: "Setup incomplete, got lucky"
+
+═════════════════════════════════════════════════════════
+ÖRNEK 3: EXCELLENT SETUP, UNLUCKY LOSS (-20 FINAL)
+═════════════════════════════════════════════════════════
+Trade Details:
+├─ Setup Score: 85 (EXCELLENT)
+├─ Entry: $50,050 (perfect 0.705)
+├─ SL Hit: $49,750 (-0.6%)
+├─ Reason: False breakout (unpredictable)
+
+Calculation:
+─────────────────────────────────────────────────────────
+Base Penalty:
+└─ Setup 85 + Loss → -50 (LOW penalty)
+
+Bonuses:
+├─ Risk discipline: +20 (even on loss!)
+└─ Perfect setup: +10
+    Total: +30
+
+Penalties:
+└─ None: 0
+
+Final: -50 + 30 = -20
+
+Result: -20 (VERY LOW penalty for loss!)
+Message: "Setup was perfect, bad luck"
+Learning: "Keep taking these setups!"
+
+═════════════════════════════════════════════════════════
+ÖRNEK 4: REVENGE TRADE, BIG LOSS (-260 → CAPPED -200)
+═════════════════════════════════════════════════════════
+Trade Details:
+├─ Setup Score: 48 (WEAK)
+├─ Previous: Just lost -1.5%
+├─ Entry: Immediate (no cooldown!)
+├─ Exit: -1.5% SL
+
+Calculation:
+─────────────────────────────────────────────────────────
+Base Penalty:
+└─ Setup 48 + Loss → -180 (HEAVY)
+
+Bonuses:
+└─ None: 0
+
+Penalties:
+├─ Revenge trade: -80
+└─ Over risk: -50 (increased risk after loss)
+    Total: -130
+
+Raw Total: -180 - 130 = -310
+CAPPED: -200 (maximum penalty)
+
+Result: -200 ⚠️⚠️⚠️
+Message: "WORST CASE! Revenge + weak setup"
+Learning: "NEVER do this again!"
+
+═════════════════════════════════════════════════════════
+
+🚫 2. ANTI-FOMO SYSTEM
+2.1 FOMO Detection Rules
+FOMO_DETECTION = {
+    
+    # ══════════════════════════════════
+    # Rule 1: Missing Conditions
+    # ══════════════════════════════════
+    'missing_conditions': {
+        'check': 'Are all PA conditions met?',
+        'violations': [
+            'ChoCH not confirmed',
+            'Fibonacci retest missing',
+            'Zone validation incomplete'
+        ],
+        'action': 'BLOCK TRADE',
+        'penalty': -150,
+        'message': 'Setup incomplete - FOMO detected!'
+    },
+    
+    # ══════════════════════════════════
+    # Rule 2: Price Chasing
+    # ══════════════════════════════════
+    'price_chasing': {
+        'check': 'Is price too far from entry point?',
+        'threshold': '3%+ from zone',
+        'detection': '''
+        Zone: $50,000
+        ChoCH: $50,200
+        Current: $51,700 (3.4% above zone)
+        → FOMO! Train left
+        ''',
+        'action': 'BLOCK TRADE',
+        'penalty': -180,
+        'message': 'Chasing price - wait for next!'
+    },
+    
+    # ══════════════════════════════════
+    # Rule 3: Skipped Fibonacci
+    # ══════════════════════════════════
+    'skipped_fibonacci': {
+        'check': 'Did price retest 0.705 or 0.618?',
+        'detection': '''
+        ChoCH happened
+        Price went straight through fib levels
+        No retest occurred
+        → FOMO risk if entering now
+        ''',
+        'action': 'BLOCK TRADE',
+        'penalty': -120,
+        'message': 'No fib retest - setup invalid!'
+    },
+    
+    # ══════════════════════════════════
+    # Rule 4: Rapid Entry
+    # ══════════════════════════════════
+    'rapid_entry': {
+        'check': 'Time since last action',
+        'threshold': '<15 minutes since last trade',
+        'detection': '''
+        Last trade: 10:00
+        New trade: 10:10 (10 min)
+        → Too fast! FOMO risk
+        ''',
+        'action': 'FORCE COOLDOWN',
+        'penalty': -100,
+        'message': 'Slow down! Cooling off...'
+    },
+    
+    # ══════════════════════════════════
+    # Rule 5: Volatility Spike
+    # ══════════════════════════════════
+    'volatility_spike': {
+        'check': 'ATR suddenly doubled?',
+        'threshold': 'ATR increased 2x in short time',
+        'detection': '''
+        Normal ATR: 5%
+        Current ATR: 12% (news event!)
+        → Don't trade in chaos
+        ''',
+        'action': 'BLOCK TRADE',
+        'penalty': -130,
+        'message': 'Wait for volatility to settle'
+    },
+    
+    # ══════════════════════════════════
+    # Rule 6: Social FOMO
+    # ══════════════════════════════════
+    'social_fomo': {
+        'check': 'Trading because others are?',
+        'detection': '''
+        Other bots/traders entered
+        You didn't
+        Now feeling FOMO
+        → Your setup ≠ their setup
+        ''',
+        'action': 'IGNORE SIGNAL',
+        'penalty': -90,
+        'message': 'Their trade is not your trade!'
+    }
+}
+2.2 FOMO Prevention Mechanism
+def detect_fomo(setup_data, bot_state):
+    """
+    FOMO tespiti - Trade öncesi check
+    """
+    
+    fomo_signals = []
+    fomo_score = 0
+    
+    # ─────────────────────────────────
+    # Check 1: Setup Complete?
+    # ─────────────────────────────────
+    required_conditions = [
+        setup_data.get('zone'),
+        setup_data.get('choch'),
+        setup_data.get('fib_retest')
+    ]
+    
+    if not all(required_conditions):
+        fomo_signals.append('setup_incomplete')
+        fomo_score += 50
+    
+    # ─────────────────────────────────
+    # Check 2: Price Movement
+    # ─────────────────────────────────
+    zone_price = setup_data.get('zone_price')
+    current_price = setup_data.get('current_price')
+    
+    price_distance = abs(current_price - zone_price) / zone_price * 100
+    
+    if price_distance > 3.0:
+        fomo_signals.append('chasing_price')
+        fomo_score += 60
+    
+    # ─────────────────────────────────
+    # Check 3: Timing
+    # ─────────────────────────────────
+    time_since_last = bot_state.get('minutes_since_last_trade')
+    
+    if time_since_last < 15:
+        fomo_signals.append('rapid_trading')
+        fomo_score += 40
+    
+    # ─────────────────────────────────
+    # Check 4: Patience Level
+    # ─────────────────────────────────
+    patience = bot_state.get('patience_level', 1.0)
+    
+    if patience < 0.3:
+        fomo_signals.append('low_patience')
+        fomo_score += 30
+    
+    # ─────────────────────────────────
+    # Check 5: Volatility
+    # ─────────────────────────────────
+    atr_change = setup_data.get('atr_change_percent', 0)
+    
+    if atr_change > 100:  # ATR doubled
+        fomo_signals.append('volatility_spike')
+        fomo_score += 50
+    
+    # ─────────────────────────────────
+    # Decision
+    # ─────────────────────────────────
+    if fomo_score >= 50:
+        return {
+            'is_fomo': True,
+            'score': fomo_score,
+            'signals': fomo_signals,
+            'reason': f'FOMO detected: {", ".join(fomo_signals)}',
+            'action': 'BLOCK TRADE'
+        }
+    
+    return {
+        'is_fomo': False,
+        'score': fomo_score,
+        'reason': 'No FOMO detected'
+    }
+2.3 FOMO Examples
+═════════════════════════════════════════════════════════
+ÖRNEK 1: CLASSIC FOMO (BLOCKED)
+═════════════════════════════════════════════════════════
+Situation:
+10:00 - Zone detected at $50,000
+10:15 - ChoCH happens at $50,200
+10:20 - Price flying: $51,500 (+3%)
+10:21 - Bot sees: "Oh no, missing out!"
+
+FOMO Detection:
+─────────────────────────────────────────────────────────
+✗ Setup complete? NO (no fib retest)
+✗ Price distance? 3% (TOO FAR)
+✗ Patience level? 0.2 (LOW)
+
+FOMO Score: 50 + 60 + 30 = 140 (HIGH!)
+
+Decision:
+├─ TRADE BLOCKED ✗
+├─ Reason: "Price chasing + setup incomplete"
+└─ Message: "Train left, wait for next!"
+
+Result: Bot prevented from bad entry ✓
+
+═════════════════════════════════════════════════════════
+ÖRNEK 2: PATIENT ENTRY (ALLOWED)
+═════════════════════════════════════════════════════════
+Situation:
+10:00 - Zone detected at $50,000
+10:15 - ChoCH happens at $50,200
+10:20 - Price retraces to $50,150
+10:25 - Fib 0.705 touched → ENTRY SIGNAL
+
+FOMO Detection:
+─────────────────────────────────────────────────────────
+✓ Setup complete? YES (all conditions)
+✓ Price distance? 0.3% (GOOD)
+✓ Patience level? 0.8 (HIGH)
+✓ Timing? 25 min since last trade (OK)
+
+FOMO Score: 0 (NONE!)
+
+Decision:
+├─ TRADE ALLOWED ✓
+├─ Reason: "Perfect setup, patient entry"
+└─ Bonus: +30 (patience rewarded)
+
+Result: Quality trade taken ✓
+
+═════════════════════════════════════════════════════════
+
+✅ PARÇA 6 ÖZET
+1. Outcome Score (Reward System)
+	•	✅ Range: -200 to +200
+	•	✅ Win scenarios (4 levels)
+	◦	Excellent (+200)
+	◦	Good (+150)
+	◦	Acceptable (+100)
+	◦	Weak (+50)
+	•	✅ Loss scenarios (5 levels)
+	◦	Acceptable (-50) - good setup
+	◦	Normal (-80)
+	◦	Weak setup (-120)
+	◦	Bad (-180)
+	◦	Terrible (-200)
+	•	✅ Bonuses (+15 to +50)
+	•	✅ Penalties (-30 to -100)
+	•	✅ Complete calculation examples
+2. Anti-FOMO System
+	•	✅ 6 detection rules
+	◦	Missing conditions
+	◦	Price chasing
+	◦	Skipped fibonacci
+	◦	Rapid entry
+	◦	Volatility spike
+	◦	Social FOMO
+	•	✅ FOMO score calculation
+	•	✅ Automatic blocking
+	•	✅ Prevention examples
+
+Token Durumu: 96K/190K kullanıldı Kalan: PARÇA 7 (Anti-Revenge/Overtrading) + PARÇA 8 (Learning/Integration)
+Devam edelim mi? 🎯
