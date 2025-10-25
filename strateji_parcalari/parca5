@@ -1,0 +1,747 @@
+📊 PARÇA 5: RISK MANAGEMENT
+💰 1. POSITION SIZING
+1.1 Base Risk Calculation
+BASE_RISK_CONFIG = {
+    'standard_risk': 2.0,      # %2 per trade (normal)
+    'reduced_risk': 1.0,       # %1 per trade (cautious)
+    'aggressive_risk': 2.5,    # %2.5 per trade (excellent setup)
+    'learning_risk': 0.5,      # %0.5 per trade (testing)
+}
+
+def calculate_base_position_size(balance, entry, stop_loss, risk_percent):
+    """
+    Temel pozisyon büyüklüğü hesaplama
+    
+    Formula:
+    Position Size = (Balance * Risk%) / (Entry - Stop)
+    """
+    
+    # Risk miktarı (USD/USDT)
+    risk_amount = balance * (risk_percent / 100)
+    
+    # Fiyat riski (per coin)
+    price_risk = abs(entry - stop_loss)
+    
+    # Pozisyon büyüklüğü (coins)
+    position_size = risk_amount / price_risk
+    
+    return position_size
+
+# Örnek:
+# Balance: $10,000
+# Risk: 2%
+# Entry: $50,000
+# Stop: $49,500
+# 
+# Risk amount: $10,000 * 0.02 = $200
+# Price risk: $50,000 - $49,500 = $500
+# Position: $200 / $500 = 0.4 BTC
+1.2 Adaptive Risk Multipliers
+RISK_MULTIPLIERS = {
+    
+    # ══════════════════════════════════
+    # 1. Setup Quality Adjustment
+    # ══════════════════════════════════
+    'setup_quality': {
+        'excellent (80+)': 1.25,   # +25% risk
+        'good (65-79)': 1.0,       # Normal
+        'acceptable (50-64)': 0.75, # -25% risk
+        'weak (40-49)': 0.5        # -50% risk
+    },
+    
+    # ══════════════════════════════════
+    # 2. Recent Performance Adjustment
+    # ══════════════════════════════════
+    'performance': {
+        'win_rate_70+': 1.1,       # +10% risk
+        'win_rate_60-70': 1.0,     # Normal
+        'win_rate_50-60': 0.9,     # -10% risk
+        'win_rate_40-50': 0.7,     # -30% risk
+        'win_rate_<40': 0.5        # -50% risk
+    },
+    
+    # ══════════════════════════════════
+    # 3. Consecutive Wins/Losses
+    # ══════════════════════════════════
+    'streak': {
+        '3+ wins': 1.1,            # +10% risk
+        '1-2 wins': 1.0,           # Normal
+        '1 loss': 0.9,             # -10% risk
+        '2 losses': 0.6,           # -40% risk
+        '3+ losses': 0.4           # -60% risk
+    },
+    
+    # ══════════════════════════════════
+    # 4. Volatility Adjustment
+    # ══════════════════════════════════
+    'volatility': {
+        'atr_>10%': 0.7,           # -30% (çok volatil)
+        'atr_8-10%': 0.8,          # -20%
+        'atr_5-8%': 1.0,           # Normal
+        'atr_3-5%': 1.1,           # +10% (stabil)
+        'atr_<3%': 1.2             # +20% (çok stabil)
+    },
+    
+    # ══════════════════════════════════
+    # 5. Drawdown Adjustment
+    # ══════════════════════════════════
+    'drawdown': {
+        '0-3%': 1.0,               # Normal
+        '3-5%': 0.9,               # -10%
+        '5-8%': 0.7,               # -30%
+        '8-10%': 0.5,              # -50%
+        '>10%': 0.3                # -70% (recovery mode)
+    }
+}
+
+def calculate_final_position_size(
+    balance, 
+    entry, 
+    stop_loss, 
+    setup_data,
+    performance_data
+):
+    """
+    Tüm faktörleri içeren pozisyon hesaplama
+    """
+    
+    # Base risk (2% default)
+    base_risk = 2.0
+    
+    # ─────────────────────────────────
+    # Multiplier 1: Setup Quality
+    # ─────────────────────────────────
+    setup_score = setup_data['quality_score']
+    
+    if setup_score >= 80:
+        quality_mult = 1.25
+    elif setup_score >= 65:
+        quality_mult = 1.0
+    elif setup_score >= 50:
+        quality_mult = 0.75
+    else:
+        quality_mult = 0.5
+    
+    # ─────────────────────────────────
+    # Multiplier 2: Recent Performance
+    # ─────────────────────────────────
+    recent_win_rate = performance_data['win_rate_last_20']
+    
+    if recent_win_rate >= 0.7:
+        perf_mult = 1.1
+    elif recent_win_rate >= 0.6:
+        perf_mult = 1.0
+    elif recent_win_rate >= 0.5:
+        perf_mult = 0.9
+    elif recent_win_rate >= 0.4:
+        perf_mult = 0.7
+    else:
+        perf_mult = 0.5
+    
+    # ─────────────────────────────────
+    # Multiplier 3: Streak
+    # ─────────────────────────────────
+    consecutive_losses = performance_data['consecutive_losses']
+    
+    if consecutive_losses == 0:
+        streak_mult = 1.0
+    elif consecutive_losses == 1:
+        streak_mult = 0.9
+    elif consecutive_losses == 2:
+        streak_mult = 0.6
+    else:
+        streak_mult = 0.4
+    
+    # ─────────────────────────────────
+    # Multiplier 4: Volatility
+    # ─────────────────────────────────
+    atr_percent = setup_data['atr_percent']
+    
+    if atr_percent > 10:
+        vol_mult = 0.7
+    elif atr_percent > 8:
+        vol_mult = 0.8
+    elif atr_percent > 5:
+        vol_mult = 1.0
+    elif atr_percent > 3:
+        vol_mult = 1.1
+    else:
+        vol_mult = 1.2
+    
+    # ─────────────────────────────────
+    # Multiplier 5: Drawdown
+    # ─────────────────────────────────
+    current_drawdown = performance_data['current_drawdown']
+    
+    if current_drawdown < 3:
+        dd_mult = 1.0
+    elif current_drawdown < 5:
+        dd_mult = 0.9
+    elif current_drawdown < 8:
+        dd_mult = 0.7
+    elif current_drawdown < 10:
+        dd_mult = 0.5
+    else:
+        dd_mult = 0.3
+    
+    # ─────────────────────────────────
+    # Final Risk Calculation
+    # ─────────────────────────────────
+    total_multiplier = (
+        quality_mult * 
+        perf_mult * 
+        streak_mult * 
+        vol_mult * 
+        dd_mult
+    )
+    
+    final_risk_percent = base_risk * total_multiplier
+    
+    # Apply limits
+    final_risk_percent = max(0.5, min(2.5, final_risk_percent))
+    
+    # Calculate position
+    position_size = calculate_base_position_size(
+        balance,
+        entry,
+        stop_loss,
+        final_risk_percent
+    )
+    
+    return {
+        'position_size': position_size,
+        'risk_percent': final_risk_percent,
+        'risk_amount': balance * (final_risk_percent / 100),
+        'multipliers': {
+            'quality': quality_mult,
+            'performance': perf_mult,
+            'streak': streak_mult,
+            'volatility': vol_mult,
+            'drawdown': dd_mult,
+            'total': total_multiplier
+        }
+    }
+1.3 Position Sizing Examples
+═════════════════════════════════════════════════════════
+ÖRNEK 1: EXCELLENT SETUP, GOOD PERFORMANCE
+═════════════════════════════════════════════════════════
+Account: $10,000
+Entry: $50,000
+Stop: $49,500
+Price risk: $500
+
+Setup:
+├─ Quality score: 85 (EXCELLENT)
+├─ Recent win rate: 68%
+├─ Consecutive losses: 0
+├─ ATR: 5.5%
+└─ Drawdown: 2%
+
+Multipliers:
+├─ Quality (85): 1.25
+├─ Performance (68%): 1.0
+├─ Streak (0 loss): 1.0
+├─ Volatility (5.5%): 1.0
+├─ Drawdown (2%): 1.0
+└─ TOTAL: 1.25
+
+Risk Calculation:
+├─ Base risk: 2.0%
+├─ Adjusted: 2.0% * 1.25 = 2.5%
+└─ Risk amount: $10,000 * 2.5% = $250
+
+Position Size:
+└─ $250 / $500 = 0.5 BTC
+
+Trade Details:
+├─ Position: 0.5 BTC
+├─ Entry: $50,000 ($25,000 total)
+├─ Risk: $250 (2.5%)
+└─ Status: AGGRESSIVE (excellent setup)
+
+═════════════════════════════════════════════════════════
+ÖRNEK 2: GOOD SETUP, RECENT LOSSES
+═════════════════════════════════════════════════════════
+Account: $10,000
+Entry: $50,000
+Stop: $49,500
+Price risk: $500
+
+Setup:
+├─ Quality score: 68 (GOOD)
+├─ Recent win rate: 52%
+├─ Consecutive losses: 2
+├─ ATR: 6.0%
+└─ Drawdown: 4.5%
+
+Multipliers:
+├─ Quality (68): 1.0
+├─ Performance (52%): 0.9
+├─ Streak (2 loss): 0.6
+├─ Volatility (6%): 1.0
+├─ Drawdown (4.5%): 0.9
+└─ TOTAL: 0.486
+
+Risk Calculation:
+├─ Base risk: 2.0%
+├─ Adjusted: 2.0% * 0.486 = 0.97%
+├─ Rounded: 1.0%
+└─ Risk amount: $10,000 * 1.0% = $100
+
+Position Size:
+└─ $100 / $500 = 0.2 BTC
+
+Trade Details:
+├─ Position: 0.2 BTC
+├─ Entry: $50,000 ($10,000 total)
+├─ Risk: $100 (1.0%)
+└─ Status: REDUCED (recent losses, cautious)
+
+═════════════════════════════════════════════════════════
+ÖRNEK 3: WEAK SETUP, HIGH DRAWDOWN
+═════════════════════════════════════════════════════════
+Account: $10,000
+Entry: $50,000
+Stop: $49,500
+Price risk: $500
+
+Setup:
+├─ Quality score: 45 (WEAK)
+├─ Recent win rate: 45%
+├─ Consecutive losses: 1
+├─ ATR: 8.5%
+└─ Drawdown: 9%
+
+Multipliers:
+├─ Quality (45): 0.5
+├─ Performance (45%): 0.7
+├─ Streak (1 loss): 0.9
+├─ Volatility (8.5%): 0.8
+├─ Drawdown (9%): 0.5
+└─ TOTAL: 0.126
+
+Risk Calculation:
+├─ Base risk: 2.0%
+├─ Adjusted: 2.0% * 0.126 = 0.25%
+├─ Below minimum, set to: 0.5%
+└─ Risk amount: $10,000 * 0.5% = $50
+
+Position Size:
+└─ $50 / $500 = 0.1 BTC
+
+Trade Details:
+├─ Position: 0.1 BTC
+├─ Entry: $50,000 ($5,000 total)
+├─ Risk: $50 (0.5%)
+└─ Status: MINIMAL (recovery mode, learning only)
+
+Decision: Likely RL will SKIP this trade
+
+═════════════════════════════════════════════════════════
+
+📊 2. RISK LIMITS
+2.1 Per-Trade Limits
+PER_TRADE_LIMITS = {
+    'max_risk_percent': 2.5,    # Max %2.5 per trade
+    'min_risk_percent': 0.5,    # Min %0.5 (below not worth)
+    'standard_risk': 2.0,       # Normal risk
+    
+    'risk_levels': {
+        'aggressive': {
+            'risk': 2.5,
+            'when': 'Setup 80+, high confidence',
+            'frequency': 'Rare (10-15% of trades)'
+        },
+        'normal': {
+            'risk': 2.0,
+            'when': 'Setup 65+, normal conditions',
+            'frequency': 'Common (60-70% of trades)'
+        },
+        'reduced': {
+            'risk': 1.0-1.5,
+            'when': 'Setup 50-64, caution needed',
+            'frequency': 'Common (20-25% of trades)'
+        },
+        'minimal': {
+            'risk': 0.5,
+            'when': 'Learning, recovery mode',
+            'frequency': 'Rare (5% of trades)'
+        }
+    }
+}
+2.2 Daily Limits
+DAILY_LIMITS = {
+    'max_daily_risk': 6.0,          # %6 max daily portfolio risk
+    'max_daily_loss': 6.0,          # %6 max actual loss before stop
+    'max_trades_per_day': 5,        # Max 5 trades total
+    'max_trades_per_coin': 2,       # Max 2 trades per coin
+    'max_losses_per_day': 3,        # Stop after 3 losses
+    
+    'daily_risk_tracking': {
+        'calculation': '''
+        Daily Risk Used = Sum of all open + closed trade risks today
+        
+        Example:
+        Trade 1: 2% (closed, win)
+        Trade 2: 1.5% (open)
+        Trade 3: 2% (closed, loss)
+        = 5.5% daily risk used
+        
+        Remaining: 6% - 5.5% = 0.5%
+        → Can take one more 0.5% trade
+        '''
+    },
+    
+    'daily_reset': {
+        'time': '00:00 UTC',
+        'action': 'Reset daily counters',
+        'carryover': 'Open positions maintain their risk allocation'
+    }
+}
+
+def check_daily_limits(portfolio_state, new_trade_risk):
+    """
+    Günlük limitleri kontrol et
+    """
+    
+    # Daily risk used
+    daily_risk_used = portfolio_state['daily_risk_used']
+    
+    # Check 1: Daily risk limit
+    if (daily_risk_used + new_trade_risk) > 6.0:
+        return {
+            'allowed': False,
+            'reason': f'Daily risk limit: {daily_risk_used:.1f}%/6%',
+            'remaining': 6.0 - daily_risk_used
+        }
+    
+    # Check 2: Trade count
+    daily_trades = portfolio_state['daily_trade_count']
+    if daily_trades >= 5:
+        return {
+            'allowed': False,
+            'reason': 'Max 5 trades per day reached'
+        }
+    
+    # Check 3: Loss count
+    daily_losses = portfolio_state['daily_loss_count']
+    if daily_losses >= 3:
+        return {
+            'allowed': False,
+            'reason': '3 losses today - stop trading'
+        }
+    
+    # Check 4: Coin-specific
+    coin = new_trade_risk['coin']
+    coin_trades_today = portfolio_state['coin_trades'].get(coin, 0)
+    if coin_trades_today >= 2:
+        return {
+            'allowed': False,
+            'reason': f'{coin}: 2 trades today (max)'
+        }
+    
+    # ALL OK
+    return {
+        'allowed': True,
+        'remaining_risk': 6.0 - daily_risk_used - new_trade_risk,
+        'remaining_trades': 5 - daily_trades
+    }
+2.3 Portfolio Limits
+PORTFOLIO_LIMITS = {
+    'max_total_open_risk': 8.0,     # %8 max all open positions
+    'max_open_positions': 4,        # Max 4 concurrent trades
+    'max_same_direction': 3,        # Max 3 LONG or 3 SHORT
+    'max_correlated_positions': 2,  # Max 2 correlated coins
+    
+    'position_allocation': {
+        'single_position_max': 40,  # %40 of portfolio max
+        'calculation': '''
+        If balance = $10,000
+        Single position max = $4,000
+        
+        Example: BTC @ $50,000
+        Max position = $4,000 / $50,000 = 0.08 BTC
+        '''
+    },
+    
+    'open_risk_calculation': {
+        'formula': '''
+        Open Risk = Sum of (Position Size * Price Risk%)
+        
+        Example:
+        Position 1: 0.4 BTC, entry $50k, stop $49.5k
+        → Risk: 0.4 * ($50k-$49.5k) / $50k = 0.4%
+        
+        Position 2: 20 ETH, entry $3k, stop $2.95k
+        → Risk: 20 * ($3k-$2.95k) / $3k = 0.33%
+        
+        Total Open Risk: 0.4% + 0.33% = 0.73%
+        '''
+    }
+}
+
+def check_portfolio_limits(portfolio_state, new_trade):
+    """
+    Portfolio limitleri kontrol et
+    """
+    
+    open_positions = portfolio_state['open_positions']
+    
+    # Check 1: Max open risk
+    current_open_risk = sum([p['risk_percent'] for p in open_positions])
+    new_total_risk = current_open_risk + new_trade['risk_percent']
+    
+    if new_total_risk > 8.0:
+        return {
+            'allowed': False,
+            'reason': f'Open risk too high: {new_total_risk:.1f}%/8%'
+        }
+    
+    # Check 2: Max positions
+    if len(open_positions) >= 4:
+        return {
+            'allowed': False,
+            'reason': 'Max 4 open positions'
+        }
+    
+    # Check 3: Same direction
+    same_direction_count = sum([
+        1 for p in open_positions 
+        if p['direction'] == new_trade['direction']
+    ])
+    
+    if same_direction_count >= 3:
+        return {
+            'allowed': False,
+            'reason': f"Max 3 {new_trade['direction']} positions"
+        }
+    
+    # Check 4: Single position size
+    position_value = new_trade['position_size'] * new_trade['entry']
+    max_position_value = portfolio_state['balance'] * 0.4
+    
+    if position_value > max_position_value:
+        return {
+            'allowed': False,
+            'reason': f'Position too large: {position_value/portfolio_state["balance"]*100:.0f}%'
+        }
+    
+    # ALL OK
+    return {
+        'allowed': True,
+        'new_total_open_risk': new_total_risk,
+        'open_slots_remaining': 4 - len(open_positions)
+    }
+
+🔗 3. CORRELATION CONTROL
+3.1 Correlation Groups
+CORRELATION_MATRIX = {
+    'high_correlation': {
+        # Correlation > 0.75
+        'BTC-ETH': 0.85,
+        'BTC-SOL': 0.78,
+        'BTC-AVAX': 0.76,
+        'ETH-SOL': 0.72,
+        'ETH-AVAX': 0.70
+    },
+    
+    'medium_correlation': {
+        # Correlation 0.5 - 0.75
+        'BTC-ADA': 0.65,
+        'ETH-MATIC': 0.62,
+        'SOL-AVAX': 0.68
+    },
+    
+    'low_correlation': {
+        # Correlation < 0.5
+        'BTC-XRP': 0.45,
+        'BTC-DOGE': 0.40,
+        'ETH-XRP': 0.38
+    },
+    
+    'correlation_rules': {
+        'max_high_corr_pairs': 2,     # Max 2 yüksek korelasyonlu
+        'risk_reduction': {
+            'high_corr': 0.5,           # %50 risk azaltma
+            'medium_corr': 0.7,         # %30 risk azaltma
+            'low_corr': 1.0             # Risk azaltma yok
+        }
+    }
+}
+
+def get_correlation(coin1, coin2):
+    """
+    İki coin arasındaki korelasyon
+    """
+    pair = f"{coin1}-{coin2}"
+    reverse_pair = f"{coin2}-{coin1}"
+    
+    # Check high correlation
+    if pair in CORRELATION_MATRIX['high_correlation']:
+        return CORRELATION_MATRIX['high_correlation'][pair]
+    if reverse_pair in CORRELATION_MATRIX['high_correlation']:
+        return CORRELATION_MATRIX['high_correlation'][reverse_pair]
+    
+    # Check medium
+    if pair in CORRELATION_MATRIX['medium_correlation']:
+        return CORRELATION_MATRIX['medium_correlation'][pair]
+    if reverse_pair in CORRELATION_MATRIX['medium_correlation']:
+        return CORRELATION_MATRIX['medium_correlation'][reverse_pair]
+    
+    # Check low
+    if pair in CORRELATION_MATRIX['low_correlation']:
+        return CORRELATION_MATRIX['low_correlation'][pair]
+    if reverse_pair in CORRELATION_MATRIX['low_correlation']:
+        return CORRELATION_MATRIX['low_correlation'][reverse_pair]
+    
+    # Default: assume medium correlation
+    return 0.6
+
+def check_correlation_risk(new_trade, open_positions):
+    """
+    Korelasyon riskini kontrol et
+    """
+    new_coin = new_trade['coin']
+    correlated_positions = []
+    
+    for position in open_positions:
+        existing_coin = position['coin']
+        
+        # Skip if same coin (handled elsewhere)
+        if existing_coin == new_coin:
+            continue
+        
+        # Get correlation
+        corr = get_correlation(new_coin, existing_coin)
+        
+        if corr >= 0.75:  # High correlation
+            correlated_positions.append({
+                'coin': existing_coin,
+                'correlation': corr,
+                'risk': position['risk_percent']
+            })
+    
+    # Check limit
+    if len(correlated_positions) >= 2:
+        return {
+            'allowed': False,
+            'reason': f'{len(correlated_positions)} correlated positions',
+            'correlated_with': [p['coin'] for p in correlated_positions]
+        }
+    
+    # Calculate risk adjustment
+    if len(correlated_positions) == 1:
+        corr_level = correlated_positions[0]['correlation']
+        
+        if corr_level >= 0.75:
+            risk_mult = 0.5  # Reduce risk 50%
+        elif corr_level >= 0.5:
+            risk_mult = 0.7  # Reduce risk 30%
+        else:
+            risk_mult = 1.0  # No reduction
+        
+        return {
+            'allowed': True,
+            'risk_adjustment': risk_mult,
+            'reason': f'Correlated with {correlated_positions[0]["coin"]}',
+            'adjusted_risk': new_trade['risk_percent'] * risk_mult
+        }
+    
+    # No correlation risk
+    return {
+        'allowed': True,
+        'risk_adjustment': 1.0,
+        'reason': 'No correlation risk'
+    }
+3.2 Correlation Examples
+═════════════════════════════════════════════════════════
+ÖRNEK 1: BTC AÇIK, ETH YENİ TRADE
+═════════════════════════════════════════════════════════
+Open Positions:
+├─ BTCUSDT: LONG, 2% risk
+
+New Trade:
+└─ ETHUSDT: LONG, 2% risk (planned)
+
+Correlation Check:
+├─ BTC-ETH correlation: 0.85 (HIGH)
+├─ Correlated positions: 1
+└─ Risk adjustment: 0.5x (50% reduction)
+
+Result:
+├─ Trade ALLOWED ✓
+├─ Adjusted risk: 2% * 0.5 = 1%
+└─ Message: "High correlation with BTC, risk reduced"
+
+Final:
+├─ ETHUSDT position: 1% risk (instead of 2%)
+└─ Total correlated risk: 2% (BTC) + 1% (ETH) = 3%
+
+═════════════════════════════════════════════════════════
+ÖRNEK 2: BTC + ETH AÇIK, SOL YENİ TRADE
+═════════════════════════════════════════════════════════
+Open Positions:
+├─ BTCUSDT: LONG, 2% risk
+└─ ETHUSDT: LONG, 1% risk
+
+New Trade:
+└─ SOLUSDT: LONG, 2% risk (planned)
+
+Correlation Check:
+├─ BTC-SOL: 0.78 (HIGH)
+├─ ETH-SOL: 0.72 (MEDIUM-HIGH)
+├─ Correlated positions: 2
+└─ Limit: Max 2 correlated positions
+
+Result:
+├─ Trade REJECTED ✗
+└─ Reason: "Already 2 correlated positions (BTC, ETH)"
+
+Action:
+└─ Skip trade or close one existing position first
+
+═════════════════════════════════════════════════════════
+ÖRNEK 3: BTC AÇIK, XRP YENİ TRADE
+═════════════════════════════════════════════════════════
+Open Positions:
+├─ BTCUSDT: LONG, 2% risk
+
+New Trade:
+└─ XRPUSDT: LONG, 2% risk
+
+Correlation Check:
+├─ BTC-XRP: 0.45 (LOW)
+├─ Correlated positions: 0
+└─ Risk adjustment: 1.0x (no reduction)
+
+Result:
+├─ Trade ALLOWED ✓
+├─ Risk: 2% (no adjustment)
+└─ Message: "Low correlation, normal risk"
+
+═════════════════════════════════════════════════════════
+
+✅ PARÇA 5 ÖZET
+Bu parçada öğrendiklerimiz:
+1. Position Sizing
+	•	✅ Base calculation (Balance * Risk% / Price Risk)
+	•	✅ 5 adaptive multipliers:
+	◦	Setup quality (0.5x - 1.25x)
+	◦	Performance (0.5x - 1.1x)
+	◦	Streak (0.4x - 1.1x)
+	◦	Volatility (0.7x - 1.2x)
+	◦	Drawdown (0.3x - 1.0x)
+	•	✅ Final risk: 0.5% - 2.5%
+	•	✅ Detailed examples
+2. Risk Limits
+	•	✅ Per-trade: Max 2.5%, Min 0.5%
+	•	✅ Daily: Max 6% risk, 5 trades, 3 losses
+	•	✅ Portfolio: Max 8% open risk, 4 positions
+	•	✅ Position allocation: Max 40% of balance
+3. Correlation Control
+	•	✅ Correlation matrix (High/Medium/Low)
+	•	✅ Max 2 correlated positions
+	•	✅ Risk reduction (50% for high corr)
+	•	✅ Examples and validation
+
+Sırada: PARÇA 6 - Reward System & Anti-FOMO Token limiti yaklaşıyor, özet geçelim mi yoksa detaylı mı? 🎯
